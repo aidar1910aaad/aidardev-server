@@ -76,6 +76,17 @@ async function bootstrap() {
     if (error.code) {
       console.error('Error code:', error.code);
     }
+    if (error.address) {
+      console.error('Address:', error.address);
+    }
+    if (error.port) {
+      console.error('Port:', error.port);
+    }
+    console.error('\n💡 Проверьте:');
+    console.error('1. Правильность DATABASE_URL в .env файле');
+    console.error('2. Доступность базы данных Neon');
+    console.error('3. Интернет соединение');
+    console.error('4. Параметры SSL в URL подключения\n');
   }
   
   // Глобальная валидация

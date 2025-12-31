@@ -26,16 +26,34 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        type: 'postgres',
-        url: configService.get<string>('DATABASE_URL') || configService.get<string>('DATABASE_PUBLIC_URL'),
-        autoLoadEntities: true,
-        synchronize: process.env.NODE_ENV !== 'production', // Автоматическое создание таблиц в development
-        namingStrategy: new SnakeNamingStrategy(),
-        ssl: {
-          rejectUnauthorized: false,
-        },
-      }),
+      useFactory: (configService: ConfigService) => {
+        let databaseUrl = configService.get<string>('DATABASE_URL') || 
+                         configService.get<string>('DATABASE_PUBLIC_URL');
+        
+        if (!databaseUrl) {
+          throw new Error('DATABASE_URL or DATABASE_PUBLIC_URL must be defined');
+        }
+
+        // Убираем channel_binding=require из URL, так как это может вызывать проблемы
+        // Оставляем только sslmode=require
+        databaseUrl = databaseUrl.replace(/[&?]channel_binding=require/g, '');
+
+        return {
+          type: 'postgres',
+          url: databaseUrl,
+          autoLoadEntities: true,
+          synchronize: process.env.NODE_ENV !== 'production', // Автоматическое создание таблиц в development
+          namingStrategy: new SnakeNamingStrategy(),
+          ssl: {
+            rejectUnauthorized: false,
+          },
+          // Дополнительные настройки для надежности подключения
+          extra: {
+            max: 10, // Максимум соединений в пуле
+            connectionTimeoutMillis: 10000, // Таймаут подключения 10 секунд
+          },
+        };
+      },
       inject: [ConfigService],
     }),
     ChatsModule,
