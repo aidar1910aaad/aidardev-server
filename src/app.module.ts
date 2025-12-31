@@ -80,14 +80,21 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
         
         // Добавляем параметры для надежности подключения
         const urlParams = new URLSearchParams(cleanDatabaseUrl.split('?')[1] || '');
-        urlParams.set('connect_timeout', '30'); // Увеличиваем таймаут подключения до 30 секунд
+        urlParams.set('connect_timeout', '60'); // Увеличиваем таймаут подключения до 60 секунд
         urlParams.set('sslmode', 'require');
+        // Принудительно используем IPv4 (избегаем проблем с IPv6)
+        urlParams.set('options', '-c client_encoding=UTF8');
         
         const baseUrl = cleanDatabaseUrl.split('?')[0];
         cleanDatabaseUrl = `${baseUrl}?${urlParams.toString()}`;
         
         console.log('✅ Database URL found:', cleanDatabaseUrl.substring(0, 60) + '...');
         console.log('📊 Using pooler connection (more reliable for Railway)');
+        console.log('🔧 Connection timeout: 60s');
+        console.log('💡 If connection fails, check Neon settings:');
+        console.log('   1. Go to Neon Dashboard → Settings → IP Allowlist');
+        console.log('   2. Add Railway IP ranges or allow all (0.0.0.0/0)');
+        console.log('   3. Or use Neon\'s direct connection URL instead of pooler\n');
 
         return {
           type: 'postgres',
@@ -100,14 +107,17 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
           },
           // Дополнительные настройки для надежности подключения
           extra: {
-            max: 20, // Увеличиваем пул соединений
-            connectionTimeoutMillis: 30000, // Увеличиваем таймаут до 30 секунд
+            max: 10, // Уменьшаем пул для стабильности
+            connectionTimeoutMillis: 60000, // Увеличиваем таймаут до 60 секунд
             idleTimeoutMillis: 30000, // Таймаут простоя соединения
             statement_timeout: 30000, // Таймаут выполнения запроса
+            // Принудительно используем IPv4
+            keepAlive: true,
+            keepAliveInitialDelayMillis: 10000,
           },
           // Настройки для retry при ошибках подключения
-          retryAttempts: 3,
-          retryDelay: 3000,
+          retryAttempts: 5, // Увеличиваем количество попыток
+          retryDelay: 5000, // Увеличиваем задержку между попытками
         };
       },
       inject: [ConfigService],
