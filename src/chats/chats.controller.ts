@@ -117,12 +117,19 @@ export class ChatsController {
   @Get('stats')
   @ApiOperation({ summary: 'Получить статистику по чатам' })
   @ApiResponse({ status: 200, description: 'Статистика успешно получена' })
+  @ApiResponse({ status: 500, description: 'Ошибка при получении статистики' })
   async getStats() {
-    const data = await this.chatsService.getStats();
-    return {
-      success: true,
-      data,
-    };
+    try {
+      const data = await this.chatsService.getStats();
+      return {
+        success: true,
+        data,
+      };
+    } catch (error: any) {
+      // Логируем ошибку для отладки
+      console.error('Error in getStats:', error.message);
+      throw error; // NestJS обработает ошибку через глобальный exception filter
+    }
   }
 
   /**

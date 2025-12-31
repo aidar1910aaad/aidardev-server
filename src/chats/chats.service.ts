@@ -392,87 +392,103 @@ export class ChatsService {
   /**
    * Получение статистики по чатам
    * Используется для дашборда админки
+   * Оптимизировано: все запросы выполняются параллельно
    */
   async getStats() {
-    // Общее количество чатов
-    const total = await this.chatRepository.count();
+    // Вычисляем даты заранее
+    const now = new Date();
+    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const last7days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const last30days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Статистика по статусам
-    const statusCounts = await this.chatRepository
-      .createQueryBuilder('chat')
-      .select('chat.status', 'status')
-      .addSelect('COUNT(*)', 'count')
-      .groupBy('chat.status')
-      .getRawMany();
+    // Выполняем все независимые запросы параллельно для ускорения
+    const [
+      total,
+      statusCounts,
+      projectTypeCounts,
+      withPhone,
+      withName,
+      withBoth,
+      avgMessageCountResult,
+      priceObjections,
+      negativeResponses,
+      uncertaintyCount,
+      last24hCount,
+      last7daysCount,
+      last30daysCount,
+    ] = await Promise.all([
+      // Общее количество чатов
+      this.chatRepository.count(),
 
+      // Статистика по статусам
+      this.chatRepository
+        .createQueryBuilder('chat')
+        .select('chat.status', 'status')
+        .addSelect('COUNT(*)', 'count')
+        .groupBy('chat.status')
+        .getRawMany(),
+
+      // Статистика по типам проектов
+      this.chatRepository
+        .createQueryBuilder('chat')
+        .select('chat.project_type', 'projectType')
+        .addSelect('COUNT(*)', 'count')
+        .where('chat.project_type IS NOT NULL')
+        .groupBy('chat.project_type')
+        .getRawMany(),
+
+      // Статистика по контактам
+      this.chatRepository.count({
+        where: { phone: Not(IsNull()) },
+      }),
+      this.chatRepository.count({
+        where: { hasName: true },
+      }),
+      this.chatRepository.count({
+        where: { phone: Not(IsNull()), hasName: true },
+      }),
+
+      // Метрики
+      this.chatRepository
+        .createQueryBuilder('chat')
+        .select('AVG(chat.message_count)', 'avg')
+        .getRawOne(),
+
+      this.chatRepository.count({
+        where: { hasPriceObjection: true },
+      }),
+      this.chatRepository.count({
+        where: { hasNegativeResponse: true },
+      }),
+      this.chatRepository.count({
+        where: { hasUncertainty: true },
+      }),
+
+      // Активность за последние периоды
+      this.chatRepository.count({
+        where: { createdAt: Between(last24h, now) },
+      }),
+      this.chatRepository.count({
+        where: { createdAt: Between(last7days, now) },
+      }),
+      this.chatRepository.count({
+        where: { createdAt: Between(last30days, now) },
+      }),
+    ]);
+
+    // Обрабатываем результаты
     const byStatus: Record<string, number> = {};
     statusCounts.forEach((item) => {
       byStatus[item.status] = parseInt(item.count);
     });
-
-    // Статистика по типам проектов
-    const projectTypeCounts = await this.chatRepository
-      .createQueryBuilder('chat')
-      .select('chat.project_type', 'projectType')
-      .addSelect('COUNT(*)', 'count')
-      .where('chat.project_type IS NOT NULL')
-      .groupBy('chat.project_type')
-      .getRawMany();
 
     const byProjectType: Record<string, number> = {};
     projectTypeCounts.forEach((item) => {
       byProjectType[item.projectType] = parseInt(item.count);
     });
 
-    // Статистика по контактам
-    const withPhone = await this.chatRepository.count({
-      where: { phone: Not(IsNull()) },
-    });
-    const withName = await this.chatRepository.count({
-      where: { hasName: true },
-    });
-    const withBoth = await this.chatRepository.count({
-      where: { phone: Not(IsNull()), hasName: true },
-    });
-
-    // Метрики
-    const avgMessageCount = await this.chatRepository
-      .createQueryBuilder('chat')
-      .select('AVG(chat.message_count)', 'avg')
-      .getRawOne();
-
-    const priceObjections = await this.chatRepository.count({
-      where: { hasPriceObjection: true },
-    });
-
-    const negativeResponses = await this.chatRepository.count({
-      where: { hasNegativeResponse: true },
-    });
-
-    const uncertaintyCount = await this.chatRepository.count({
-      where: { hasUncertainty: true },
-    });
-
     const uncertaintyRate =
       total > 0 ? (uncertaintyCount / total) * 100 : 0;
-
-    // Активность за последние периоды
-    const now = new Date();
-    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const last7days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const last30days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-    const last24hCount = await this.chatRepository.count({
-      where: { createdAt: Between(last24h, now) },
-    });
-
-    const last7daysCount = await this.chatRepository.count({
-      where: { createdAt: Between(last7days, now) },
-    });
-
-    const last30daysCount = await this.chatRepository.count({
-      where: { createdAt: Between(last30days, now) },
-    });
 
     return {
       total,
@@ -484,7 +500,7 @@ export class ChatsService {
         withBoth,
       },
       metrics: {
-        avgMessageCount: parseFloat(avgMessageCount?.avg || '0') || 0,
+        avgMessageCount: parseFloat(avgMessageCountResult?.avg || '0') || 0,
         priceObjections,
         negativeResponses,
         uncertaintyRate: parseFloat(uncertaintyRate.toFixed(2)),
