@@ -392,7 +392,7 @@ export class ChatsService {
   /**
    * Получение статистики по чатам
    * Используется для дашборда админки
-   * Оптимизировано: все запросы выполняются параллельно
+   * Оптимизировано: запросы выполняются группами, чтобы не перегружать пул соединений
    */
   async getStats() {
     // Вычисляем даты заранее
@@ -401,34 +401,15 @@ export class ChatsService {
     const last7days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const last30days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Выполняем все независимые запросы параллельно для ускорения
-    const [
-      total,
-      statusCounts,
-      projectTypeCounts,
-      withPhone,
-      withName,
-      withBoth,
-      avgMessageCountResult,
-      priceObjections,
-      negativeResponses,
-      uncertaintyCount,
-      last24hCount,
-      last7daysCount,
-      last30daysCount,
-    ] = await Promise.all([
-      // Общее количество чатов
+    // Группа 1: Основные счетчики (выполняем параллельно)
+    const [total, statusCounts, projectTypeCounts, avgMessageCountResult] = await Promise.all([
       this.chatRepository.count(),
-
-      // Статистика по статусам
       this.chatRepository
         .createQueryBuilder('chat')
         .select('chat.status', 'status')
         .addSelect('COUNT(*)', 'count')
         .groupBy('chat.status')
         .getRawMany(),
-
-      // Статистика по типам проектов
       this.chatRepository
         .createQueryBuilder('chat')
         .select('chat.project_type', 'projectType')
@@ -436,8 +417,14 @@ export class ChatsService {
         .where('chat.project_type IS NOT NULL')
         .groupBy('chat.project_type')
         .getRawMany(),
+      this.chatRepository
+        .createQueryBuilder('chat')
+        .select('AVG(chat.message_count)', 'avg')
+        .getRawOne(),
+    ]);
 
-      // Статистика по контактам
+    // Группа 2: Статистика по контактам (выполняем параллельно)
+    const [withPhone, withName, withBoth] = await Promise.all([
       this.chatRepository.count({
         where: { phone: Not(IsNull()) },
       }),
@@ -447,13 +434,10 @@ export class ChatsService {
       this.chatRepository.count({
         where: { phone: Not(IsNull()), hasName: true },
       }),
+    ]);
 
-      // Метрики
-      this.chatRepository
-        .createQueryBuilder('chat')
-        .select('AVG(chat.message_count)', 'avg')
-        .getRawOne(),
-
+    // Группа 3: Метрики (выполняем параллельно)
+    const [priceObjections, negativeResponses, uncertaintyCount] = await Promise.all([
       this.chatRepository.count({
         where: { hasPriceObjection: true },
       }),
@@ -463,8 +447,10 @@ export class ChatsService {
       this.chatRepository.count({
         where: { hasUncertainty: true },
       }),
+    ]);
 
-      // Активность за последние периоды
+    // Группа 4: Активность за периоды (выполняем параллельно)
+    const [last24hCount, last7daysCount, last30daysCount] = await Promise.all([
       this.chatRepository.count({
         where: { createdAt: Between(last24h, now) },
       }),

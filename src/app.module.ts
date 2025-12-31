@@ -32,29 +32,20 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
         // В development - из .env файла
         // Проверяем все возможные варианты переменных от Neon
         
-        // Приоритет: используем прямой URL (не pooler) для Railway
-        // Pooler может блокироваться, прямой URL обычно работает лучше
+        // Используем простую логику как раньше
         // Сначала проверяем process.env напрямую
         const databaseUrl = 
-          process.env.POSTGRES_URL_NON_POOLING || // Прямой URL от Neon (приоритет для Railway)
-          process.env.DATABASE_URL?.replace('-pooler', '') || // Убираем pooler из DATABASE_URL
-          process.env.POSTGRES_URL?.replace('-pooler', '') || // Убираем pooler из POSTGRES_URL
-          process.env.DATABASE_PUBLIC_URL?.replace('-pooler', '') || // Убираем pooler
           process.env.DATABASE_URL || 
-          process.env.POSTGRES_URL || // Pooler URL (fallback)
+          process.env.DATABASE_PUBLIC_URL ||
+          process.env.POSTGRES_URL ||
           process.env.POSTGRES_PRISMA_URL ||
-          process.env.POSTGRES_URL_NO_SSL;
+          process.env.POSTGRES_URL_NON_POOLING;
         
         // Если не нашли, пробуем через ConfigService
         const databaseUrlFromConfig = databaseUrl || 
-          configService.get<string>('POSTGRES_URL_NON_POOLING') ||
-          (() => {
-            const url = configService.get<string>('DATABASE_URL') || configService.get<string>('POSTGRES_URL');
-            return url?.replace('-pooler', '');
-          })() ||
-          configService.get<string>('DATABASE_PUBLIC_URL')?.replace('-pooler', '') ||
-          configService.get<string>('POSTGRES_URL') ||
           configService.get<string>('DATABASE_URL') || 
+          configService.get<string>('DATABASE_PUBLIC_URL') ||
+          configService.get<string>('POSTGRES_URL') ||
           configService.get<string>('POSTGRES_PRISMA_URL');
         
         if (!databaseUrlFromConfig) {
@@ -79,40 +70,11 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
           throw new Error('DATABASE_URL or POSTGRES_URL must be defined in Railway environment variables');
         }
 
-        // Очищаем URL: убираем channel_binding=require и добавляем нужные параметры
-        let cleanDatabaseUrl = databaseUrlFromConfig.replace(/[&?]channel_binding=require/g, '');
-        
-        // Убеждаемся, что есть sslmode=require
-        if (!cleanDatabaseUrl.includes('sslmode=')) {
-          cleanDatabaseUrl += (cleanDatabaseUrl.includes('?') ? '&' : '?') + 'sslmode=require';
-        }
-        
-        // Добавляем параметры для надежности подключения
-        const urlParams = new URLSearchParams(cleanDatabaseUrl.split('?')[1] || '');
-        urlParams.set('connect_timeout', '60'); // Увеличиваем таймаут подключения до 60 секунд
-        urlParams.set('sslmode', 'require');
-        // Принудительно используем IPv4 (избегаем проблем с IPv6)
-        urlParams.set('options', '-c client_encoding=UTF8');
-        
-        const baseUrl = cleanDatabaseUrl.split('?')[0];
-        cleanDatabaseUrl = `${baseUrl}?${urlParams.toString()}`;
-        
-        // Определяем тип подключения
-        const isPooler = cleanDatabaseUrl.includes('-pooler');
-        const connectionType = isPooler ? 'pooler' : 'direct';
+        // Простая очистка URL: убираем только channel_binding=require
+        // Оставляем остальные параметры как есть (как работало раньше)
+        const cleanDatabaseUrl = databaseUrlFromConfig.replace(/[&?]channel_binding=require/g, '');
         
         console.log('✅ Database URL found:', cleanDatabaseUrl.substring(0, 60) + '...');
-        console.log(`📊 Using ${connectionType} connection`);
-        console.log('🔧 Connection timeout: 60s');
-        
-        if (isPooler) {
-          console.log('⚠️  Using pooler - if connection fails:');
-          console.log('   1. Check Neon Dashboard → Settings → IP Allowlist');
-          console.log('   2. Add 0.0.0.0/0 to allow all IPs (for testing)');
-          console.log('   3. Or use POSTGRES_URL_NON_POOLING (direct connection)\n');
-        } else {
-          console.log('✅ Using direct connection (should work better with Railway)\n');
-        }
 
         return {
           type: 'postgres',
@@ -123,19 +85,12 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
           ssl: {
             rejectUnauthorized: false,
           },
-          // Дополнительные настройки для надежности подключения
+          // Настройки пула соединений
           extra: {
-            max: 10, // Уменьшаем пул для стабильности
-            connectionTimeoutMillis: 60000, // Увеличиваем таймаут до 60 секунд
+            max: 20, // Увеличиваем пул для параллельных запросов (getStats использует много запросов)
+            connectionTimeoutMillis: 10000, // Таймаут подключения 10 секунд
             idleTimeoutMillis: 30000, // Таймаут простоя соединения
-            statement_timeout: 30000, // Таймаут выполнения запроса
-            // Принудительно используем IPv4
-            keepAlive: true,
-            keepAliveInitialDelayMillis: 10000,
           },
-          // Настройки для retry при ошибках подключения
-          retryAttempts: 5, // Увеличиваем количество попыток
-          retryDelay: 5000, // Увеличиваем задержку между попытками
         };
       },
       inject: [ConfigService],
