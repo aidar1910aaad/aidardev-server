@@ -31,26 +31,40 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
         // В production переменные окружения берутся из системы (Railway, Neon, etc.)
         // В development - из .env файла
         // Проверяем все возможные варианты переменных от Neon
+        
+        // Сначала проверяем process.env напрямую
         const databaseUrl = 
           process.env.DATABASE_URL || 
           process.env.DATABASE_PUBLIC_URL ||
           process.env.POSTGRES_URL ||
           process.env.POSTGRES_PRISMA_URL ||
+          process.env.POSTGRES_URL_NO_SSL;
+        
+        // Если не нашли, пробуем через ConfigService
+        const databaseUrlFromConfig = databaseUrl || 
           configService.get<string>('DATABASE_URL') || 
           configService.get<string>('DATABASE_PUBLIC_URL') ||
-          configService.get<string>('POSTGRES_URL');
+          configService.get<string>('POSTGRES_URL') ||
+          configService.get<string>('POSTGRES_PRISMA_URL');
         
-        if (!databaseUrl) {
+        if (!databaseUrlFromConfig) {
           console.error('❌ DATABASE_URL must be defined');
-          console.error('Available env vars:', Object.keys(process.env).filter(k => 
-            k.includes('DATABASE') || k.includes('POSTGRES')
-          ));
-          throw new Error('DATABASE_URL or POSTGRES_URL must be defined');
+          console.error('Checking process.env directly...');
+          console.error('DATABASE_URL:', process.env.DATABASE_URL ? '✅ Found' : '❌ Not found');
+          console.error('POSTGRES_URL:', process.env.POSTGRES_URL ? '✅ Found' : '❌ Not found');
+          console.error('All env vars with DATABASE/POSTGRES:', 
+            Object.keys(process.env)
+              .filter(k => k.includes('DATABASE') || k.includes('POSTGRES'))
+              .map(k => `${k}=${process.env[k]?.substring(0, 50)}...`)
+          );
+          throw new Error('DATABASE_URL or POSTGRES_URL must be defined in Railway environment variables');
         }
 
         // Убираем channel_binding=require из URL, так как это может вызывать проблемы
         // Оставляем только sslmode=require
-        const cleanDatabaseUrl = databaseUrl.replace(/[&?]channel_binding=require/g, '');
+        const cleanDatabaseUrl = databaseUrlFromConfig.replace(/[&?]channel_binding=require/g, '');
+        
+        console.log('✅ Database URL found:', cleanDatabaseUrl.substring(0, 50) + '...');
 
         return {
           type: 'postgres',
