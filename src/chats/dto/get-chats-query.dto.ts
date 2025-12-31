@@ -15,6 +15,9 @@ export enum SortBy {
   CREATED_AT = 'created_at',
   UPDATED_AT = 'updated_at',
   MESSAGE_COUNT = 'message_count',
+  NAME = 'name',
+  PHONE = 'phone',
+  STATUS = 'status',
 }
 
 export enum SortOrder {
@@ -70,6 +73,7 @@ export class GetChatsQueryDto {
     description: 'Поле для сортировки',
     enum: SortBy,
     default: SortBy.CREATED_AT,
+    example: 'created_at',
   })
   @IsOptional()
   @IsEnum(SortBy)

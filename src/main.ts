@@ -1,16 +1,63 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { DataSource } from 'typeorm';
+import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const logger = new Logger('Bootstrap');
+  const app = await NestFactory.create(AppModule, {
+    logger: ['error', 'warn', 'log', 'debug', 'verbose'],
+  });
+  
+  // Логирование всех HTTP запросов
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const startTime = Date.now();
+    const { method, originalUrl, ip } = req;
+    
+    res.on('finish', () => {
+      const duration = Date.now() - startTime;
+      const { statusCode } = res;
+      const logMessage = `${method} ${originalUrl} ${statusCode} ${duration}ms - ${ip || 'unknown'}`;
+      
+      if (statusCode >= 500) {
+        logger.error(logMessage);
+      } else if (statusCode >= 400) {
+        logger.warn(logMessage);
+      } else {
+        logger.log(logMessage);
+      }
+    });
+    
+    next();
+  });
   
   // Проверка подключения к БД и очистка проблемных данных
   try {
     const dataSource = app.get(DataSource);
+    
+    // Проверяем подключение
     await dataSource.query('SELECT 1');
+    
+    // Получаем информацию о базе данных
+    const dbInfo = await dataSource.query('SELECT current_database() as database, version() as version');
+    const dbName = dbInfo[0]?.database || 'unknown';
+    const dbVersion = dbInfo[0]?.version?.split(',')[0] || 'unknown';
+    
+    // Проверяем существование таблиц
+    const tables = await dataSource.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_type = 'BASE TABLE'
+      ORDER BY table_name
+    `);
+    
+    console.log('✅ Database connection: SUCCESS');
+    console.log(`📊 Database: ${dbName}`);
+    console.log(`🔧 Version: ${dbVersion}`);
+    console.log(`📋 Tables (${tables.length}): ${tables.map((t: any) => t.table_name).join(', ') || 'none'}`);
     
     // Очищаем записи с NULL chat_id (если они есть)
     try {
@@ -23,18 +70,19 @@ async function bootstrap() {
     } catch (cleanupError) {
       // Игнорируем ошибки очистки (таблица может не существовать)
     }
-    
-    console.log('✅ Database connection: SUCCESS');
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Database connection: FAILED');
     console.error('Error:', error.message);
+    if (error.code) {
+      console.error('Error code:', error.code);
+    }
   }
   
   // Глобальная валидация
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false, // Разрешаем дополнительные поля (особенно в metrics)
       transform: true,
       transformOptions: {
         enableImplicitConversion: true,

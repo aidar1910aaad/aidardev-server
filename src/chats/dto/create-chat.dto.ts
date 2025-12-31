@@ -10,7 +10,7 @@ import {
   MinLength,
   IsISO8601,
   ArrayMinSize,
-  Matches,
+  IsObject,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -89,9 +89,21 @@ export class MetricsDto {
   })
   @IsNumber()
   uncertaintyCount: number;
+
+  // Дополнительные поля метрик принимаются без валидации
+  // Фронтенд может отправлять любые дополнительные метрики
+  [key: string]: any;
 }
 
 export class CreateChatDto {
+  @ApiPropertyOptional({
+    description: 'ID существующего чата для обновления (если передан - чат обновится, иначе создастся новый)',
+    example: 'uuid-чата',
+  })
+  @IsOptional()
+  @IsString()
+  chatId?: string;
+
   @ApiProperty({
     description: 'Время начала/сохранения чата (ISO 8601)',
     example: '2024-01-15T10:30:00.000Z',
@@ -101,14 +113,11 @@ export class CreateChatDto {
   timestamp: string;
 
   @ApiPropertyOptional({
-    description: 'Номер телефона, извлеченный из сообщений',
+    description: 'Номер телефона, извлеченный из сообщений (валидация на фронтенде)',
     example: '+77001234567',
   })
   @IsOptional()
   @IsString()
-  @Matches(/^(\+?7|8)?[\s\-]?\(?(\d{3})\)?[\s\-]?(\d{3})[\s\-]?(\d{2})[\s\-]?(\d{2})$/, {
-    message: 'Phone must be a valid phone number',
-  })
   phone?: string;
 
   @ApiPropertyOptional({
@@ -142,12 +151,11 @@ export class CreateChatDto {
   messages: MessageDto[];
 
   @ApiPropertyOptional({
-    description: 'Метрики чата',
+    description: 'Метрики чата (принимаются любые дополнительные поля)',
     type: MetricsDto,
   })
   @IsOptional()
-  @ValidateNested()
-  @Type(() => MetricsDto)
+  @IsObject()
   metrics?: MetricsDto;
 
   @ApiPropertyOptional({

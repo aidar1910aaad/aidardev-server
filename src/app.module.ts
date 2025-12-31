@@ -28,9 +28,9 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
-        url: configService.get<string>('DATABASE_PUBLIC_URL'),
+        url: configService.get<string>('DATABASE_URL') || configService.get<string>('DATABASE_PUBLIC_URL'),
         autoLoadEntities: true,
-        synchronize: false, // Отключено из-за проблем с миграцией существующих данных
+        synchronize: process.env.NODE_ENV !== 'production', // Автоматическое создание таблиц в development
         namingStrategy: new SnakeNamingStrategy(),
         ssl: {
           rejectUnauthorized: false,
