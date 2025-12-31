@@ -22,25 +22,33 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '.env',
+      // В production используем переменные окружения системы, в development - .env файл
+      envFilePath: process.env.NODE_ENV === 'production' ? undefined : '.env',
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
-        let databaseUrl = configService.get<string>('DATABASE_URL') || 
-                         configService.get<string>('DATABASE_PUBLIC_URL');
+        // В production переменные окружения берутся из системы (Railway, Docker, etc.)
+        // В development - из .env файла
+        const databaseUrl = 
+          process.env.DATABASE_URL || 
+          process.env.DATABASE_PUBLIC_URL ||
+          configService.get<string>('DATABASE_URL') || 
+          configService.get<string>('DATABASE_PUBLIC_URL');
         
         if (!databaseUrl) {
+          console.error('❌ DATABASE_URL or DATABASE_PUBLIC_URL must be defined');
+          console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('DATABASE')));
           throw new Error('DATABASE_URL or DATABASE_PUBLIC_URL must be defined');
         }
 
         // Убираем channel_binding=require из URL, так как это может вызывать проблемы
         // Оставляем только sslmode=require
-        databaseUrl = databaseUrl.replace(/[&?]channel_binding=require/g, '');
+        const cleanDatabaseUrl = databaseUrl.replace(/[&?]channel_binding=require/g, '');
 
         return {
           type: 'postgres',
-          url: databaseUrl,
+          url: cleanDatabaseUrl,
           autoLoadEntities: true,
           synchronize: process.env.NODE_ENV !== 'production', // Автоматическое создание таблиц в development
           namingStrategy: new SnakeNamingStrategy(),
