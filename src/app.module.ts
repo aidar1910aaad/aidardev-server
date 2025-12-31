@@ -28,18 +28,24 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
-        // В production переменные окружения берутся из системы (Railway, Docker, etc.)
+        // В production переменные окружения берутся из системы (Railway, Neon, etc.)
         // В development - из .env файла
+        // Проверяем все возможные варианты переменных от Neon
         const databaseUrl = 
           process.env.DATABASE_URL || 
           process.env.DATABASE_PUBLIC_URL ||
+          process.env.POSTGRES_URL ||
+          process.env.POSTGRES_PRISMA_URL ||
           configService.get<string>('DATABASE_URL') || 
-          configService.get<string>('DATABASE_PUBLIC_URL');
+          configService.get<string>('DATABASE_PUBLIC_URL') ||
+          configService.get<string>('POSTGRES_URL');
         
         if (!databaseUrl) {
-          console.error('❌ DATABASE_URL or DATABASE_PUBLIC_URL must be defined');
-          console.error('Available env vars:', Object.keys(process.env).filter(k => k.includes('DATABASE')));
-          throw new Error('DATABASE_URL or DATABASE_PUBLIC_URL must be defined');
+          console.error('❌ DATABASE_URL must be defined');
+          console.error('Available env vars:', Object.keys(process.env).filter(k => 
+            k.includes('DATABASE') || k.includes('POSTGRES')
+          ));
+          throw new Error('DATABASE_URL or POSTGRES_URL must be defined');
         }
 
         // Убираем channel_binding=require из URL, так как это может вызывать проблемы
