@@ -32,19 +32,28 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
         // В development - из .env файла
         // Проверяем все возможные варианты переменных от Neon
         
-        // Приоритет: используем pooler URL (более надежен для Railway)
+        // Приоритет: используем прямой URL (не pooler) для Railway
+        // Pooler может блокироваться, прямой URL обычно работает лучше
         // Сначала проверяем process.env напрямую
         const databaseUrl = 
-          process.env.POSTGRES_URL || // Pooler URL от Neon (приоритет)
-          process.env.DATABASE_PUBLIC_URL || // Public URL с pooler
+          process.env.POSTGRES_URL_NON_POOLING || // Прямой URL от Neon (приоритет для Railway)
+          process.env.DATABASE_URL?.replace('-pooler', '') || // Убираем pooler из DATABASE_URL
+          process.env.POSTGRES_URL?.replace('-pooler', '') || // Убираем pooler из POSTGRES_URL
+          process.env.DATABASE_PUBLIC_URL?.replace('-pooler', '') || // Убираем pooler
           process.env.DATABASE_URL || 
+          process.env.POSTGRES_URL || // Pooler URL (fallback)
           process.env.POSTGRES_PRISMA_URL ||
           process.env.POSTGRES_URL_NO_SSL;
         
         // Если не нашли, пробуем через ConfigService
         const databaseUrlFromConfig = databaseUrl || 
+          configService.get<string>('POSTGRES_URL_NON_POOLING') ||
+          (() => {
+            const url = configService.get<string>('DATABASE_URL') || configService.get<string>('POSTGRES_URL');
+            return url?.replace('-pooler', '');
+          })() ||
+          configService.get<string>('DATABASE_PUBLIC_URL')?.replace('-pooler', '') ||
           configService.get<string>('POSTGRES_URL') ||
-          configService.get<string>('DATABASE_PUBLIC_URL') ||
           configService.get<string>('DATABASE_URL') || 
           configService.get<string>('POSTGRES_PRISMA_URL');
         
@@ -88,13 +97,22 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
         const baseUrl = cleanDatabaseUrl.split('?')[0];
         cleanDatabaseUrl = `${baseUrl}?${urlParams.toString()}`;
         
+        // Определяем тип подключения
+        const isPooler = cleanDatabaseUrl.includes('-pooler');
+        const connectionType = isPooler ? 'pooler' : 'direct';
+        
         console.log('✅ Database URL found:', cleanDatabaseUrl.substring(0, 60) + '...');
-        console.log('📊 Using pooler connection (more reliable for Railway)');
+        console.log(`📊 Using ${connectionType} connection`);
         console.log('🔧 Connection timeout: 60s');
-        console.log('💡 If connection fails, check Neon settings:');
-        console.log('   1. Go to Neon Dashboard → Settings → IP Allowlist');
-        console.log('   2. Add Railway IP ranges or allow all (0.0.0.0/0)');
-        console.log('   3. Or use Neon\'s direct connection URL instead of pooler\n');
+        
+        if (isPooler) {
+          console.log('⚠️  Using pooler - if connection fails:');
+          console.log('   1. Check Neon Dashboard → Settings → IP Allowlist');
+          console.log('   2. Add 0.0.0.0/0 to allow all IPs (for testing)');
+          console.log('   3. Or use POSTGRES_URL_NON_POOLING (direct connection)\n');
+        } else {
+          console.log('✅ Using direct connection (should work better with Railway)\n');
+        }
 
         return {
           type: 'postgres',
