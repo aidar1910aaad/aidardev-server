@@ -32,39 +32,62 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
         // В development - из .env файла
         // Проверяем все возможные варианты переменных от Neon
         
+        // Приоритет: используем pooler URL (более надежен для Railway)
         // Сначала проверяем process.env напрямую
         const databaseUrl = 
+          process.env.POSTGRES_URL || // Pooler URL от Neon (приоритет)
+          process.env.DATABASE_PUBLIC_URL || // Public URL с pooler
           process.env.DATABASE_URL || 
-          process.env.DATABASE_PUBLIC_URL ||
-          process.env.POSTGRES_URL ||
           process.env.POSTGRES_PRISMA_URL ||
           process.env.POSTGRES_URL_NO_SSL;
         
         // Если не нашли, пробуем через ConfigService
         const databaseUrlFromConfig = databaseUrl || 
-          configService.get<string>('DATABASE_URL') || 
-          configService.get<string>('DATABASE_PUBLIC_URL') ||
           configService.get<string>('POSTGRES_URL') ||
+          configService.get<string>('DATABASE_PUBLIC_URL') ||
+          configService.get<string>('DATABASE_URL') || 
           configService.get<string>('POSTGRES_PRISMA_URL');
         
         if (!databaseUrlFromConfig) {
           console.error('❌ DATABASE_URL must be defined');
           console.error('Checking process.env directly...');
-          console.error('DATABASE_URL:', process.env.DATABASE_URL ? '✅ Found' : '❌ Not found');
           console.error('POSTGRES_URL:', process.env.POSTGRES_URL ? '✅ Found' : '❌ Not found');
+          console.error('DATABASE_URL:', process.env.DATABASE_URL ? '✅ Found' : '❌ Not found');
+          console.error('DATABASE_PUBLIC_URL:', process.env.DATABASE_PUBLIC_URL ? '✅ Found' : '❌ Not found');
+          
           console.error('All env vars with DATABASE/POSTGRES:', 
             Object.keys(process.env)
               .filter(k => k.includes('DATABASE') || k.includes('POSTGRES'))
               .map(k => `${k}=${process.env[k]?.substring(0, 50)}...`)
           );
+          
+          console.error('\n💡 В Railway нужно:');
+          console.error('1. Открыть настройки вашего сервиса (не проекта)');
+          console.error('2. Перейти в раздел "Variables"');
+          console.error('3. Добавить переменную POSTGRES_URL (pooler URL от Neon)');
+          console.error('4. Перезапустить сервис\n');
+          
           throw new Error('DATABASE_URL or POSTGRES_URL must be defined in Railway environment variables');
         }
 
-        // Убираем channel_binding=require из URL, так как это может вызывать проблемы
-        // Оставляем только sslmode=require
-        const cleanDatabaseUrl = databaseUrlFromConfig.replace(/[&?]channel_binding=require/g, '');
+        // Очищаем URL: убираем channel_binding=require и добавляем нужные параметры
+        let cleanDatabaseUrl = databaseUrlFromConfig.replace(/[&?]channel_binding=require/g, '');
         
-        console.log('✅ Database URL found:', cleanDatabaseUrl.substring(0, 50) + '...');
+        // Убеждаемся, что есть sslmode=require
+        if (!cleanDatabaseUrl.includes('sslmode=')) {
+          cleanDatabaseUrl += (cleanDatabaseUrl.includes('?') ? '&' : '?') + 'sslmode=require';
+        }
+        
+        // Добавляем параметры для надежности подключения
+        const urlParams = new URLSearchParams(cleanDatabaseUrl.split('?')[1] || '');
+        urlParams.set('connect_timeout', '30'); // Увеличиваем таймаут подключения до 30 секунд
+        urlParams.set('sslmode', 'require');
+        
+        const baseUrl = cleanDatabaseUrl.split('?')[0];
+        cleanDatabaseUrl = `${baseUrl}?${urlParams.toString()}`;
+        
+        console.log('✅ Database URL found:', cleanDatabaseUrl.substring(0, 60) + '...');
+        console.log('📊 Using pooler connection (more reliable for Railway)');
 
         return {
           type: 'postgres',
@@ -77,9 +100,14 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
           },
           // Дополнительные настройки для надежности подключения
           extra: {
-            max: 10, // Максимум соединений в пуле
-            connectionTimeoutMillis: 10000, // Таймаут подключения 10 секунд
+            max: 20, // Увеличиваем пул соединений
+            connectionTimeoutMillis: 30000, // Увеличиваем таймаут до 30 секунд
+            idleTimeoutMillis: 30000, // Таймаут простоя соединения
+            statement_timeout: 30000, // Таймаут выполнения запроса
           },
+          // Настройки для retry при ошибках подключения
+          retryAttempts: 3,
+          retryDelay: 3000,
         };
       },
       inject: [ConfigService],

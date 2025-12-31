@@ -82,11 +82,21 @@ async function bootstrap() {
     if (error.port) {
       console.error('Port:', error.port);
     }
+    
+    // Проверяем, есть ли переменные окружения
+    const hasPostgresUrl = !!(process.env.POSTGRES_URL || process.env.DATABASE_URL || process.env.DATABASE_PUBLIC_URL);
     console.error('\n💡 Проверьте:');
-    console.error('1. Правильность DATABASE_URL в .env файле');
-    console.error('2. Доступность базы данных Neon');
-    console.error('3. Интернет соединение');
-    console.error('4. Параметры SSL в URL подключения\n');
+    if (!hasPostgresUrl) {
+      console.error('1. ❌ Переменные окружения не найдены!');
+      console.error('   Добавьте POSTGRES_URL в Variables вашего сервиса Railway');
+    } else {
+      console.error('1. ✅ Переменные окружения найдены');
+    }
+    console.error('2. Проверьте доступность базы данных Neon');
+    console.error('3. Убедитесь, что используете pooler URL (с -pooler в адресе)');
+    console.error('4. Проверьте интернет соединение Railway → Neon');
+    console.error('5. Убедитесь, что SSL параметры правильные (sslmode=require)\n');
+    console.error('⚠️  Приложение запустится, но API не будет работать без БД\n');
   }
   
   // Глобальная валидация
@@ -141,11 +151,20 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization'],
   });
   
-  const port = process.env.PORT ?? 3001;
-  await app.listen(port);
+  // В Railway PORT устанавливается автоматически, используем его
+  // В development используем 3001 по умолчанию
+  const port = process.env.PORT || 3001;
+  await app.listen(port, '0.0.0.0'); // Слушаем на всех интерфейсах для Railway
   
-  console.log(`\n🚀 Server is running on: http://localhost:${port}`);
-  console.log(`📚 Swagger documentation: http://localhost:${port}/api/docs\n`);
+  console.log(`\n🚀 Server is running on port ${port}`);
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    console.log(`🌐 Public URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
+    console.log(`📚 Swagger: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/docs`);
+  } else {
+    console.log(`🌐 Local URL: http://localhost:${port}`);
+    console.log(`📚 Swagger: http://localhost:${port}/api/docs`);
+  }
+  console.log('');
 }
 
 bootstrap();
