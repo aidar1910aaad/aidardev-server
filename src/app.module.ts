@@ -32,21 +32,20 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
         // В development - из .env файла
         // Проверяем все возможные варианты переменных от Neon
         
-        // Приоритет: сначала pooler URL (рекомендуется для Neon), затем другие варианты
-        // POSTGRES_URL от Neon содержит pooler URL (с -pooler в адресе)
+        // Используем простую логику - проверяем все возможные варианты
         const databaseUrl = 
-          process.env.POSTGRES_URL || // Pooler URL от Neon (рекомендуется)
           process.env.DATABASE_URL || 
-          process.env.POSTGRES_PRISMA_URL ||
           process.env.DATABASE_PUBLIC_URL ||
+          process.env.POSTGRES_URL ||
+          process.env.POSTGRES_PRISMA_URL ||
           process.env.POSTGRES_URL_NON_POOLING;
         
-        // Если не нашли, пробуем через ConfigService (с тем же приоритетом)
+        // Если не нашли, пробуем через ConfigService
         const databaseUrlFromConfig = databaseUrl || 
-          configService.get<string>('POSTGRES_URL') ||
           configService.get<string>('DATABASE_URL') || 
-          configService.get<string>('POSTGRES_PRISMA_URL') ||
-          configService.get<string>('DATABASE_PUBLIC_URL');
+          configService.get<string>('DATABASE_PUBLIC_URL') ||
+          configService.get<string>('POSTGRES_URL') ||
+          configService.get<string>('POSTGRES_PRISMA_URL');
         
         if (!databaseUrlFromConfig) {
           console.error('❌ DATABASE_URL must be defined');

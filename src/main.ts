@@ -154,17 +154,47 @@ async function bootstrap() {
   // В Railway PORT устанавливается автоматически, используем его
   // В development используем 3001 по умолчанию
   const port = process.env.PORT || 3001;
-  await app.listen(port, '0.0.0.0'); // Слушаем на всех интерфейсах для Railway
   
-  console.log(`\n🚀 Server is running on port ${port}`);
-  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
-    console.log(`🌐 Public URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
-    console.log(`📚 Swagger: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/docs`);
-  } else {
-    console.log(`🌐 Local URL: http://localhost:${port}`);
-    console.log(`📚 Swagger: http://localhost:${port}/api/docs`);
+  // Graceful shutdown для корректного завершения процесса
+  // Это решает проблему EADDRINUSE при перезапуске в watch режиме
+  process.on('SIGTERM', async () => {
+    logger.log('SIGTERM received, shutting down gracefully');
+    await app.close();
+    process.exit(0);
+  });
+  
+  process.on('SIGINT', async () => {
+    logger.log('SIGINT received, shutting down gracefully');
+    await app.close();
+    process.exit(0);
+  });
+  
+  try {
+    await app.listen(port, '0.0.0.0'); // Слушаем на всех интерфейсах для Railway
+    
+    console.log(`\n🚀 Server is running on port ${port}`);
+    if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+      console.log(`🌐 Public URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
+      console.log(`📚 Swagger: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/docs`);
+    } else {
+      console.log(`🌐 Local URL: http://localhost:${port}`);
+      console.log(`📚 Swagger: http://localhost:${port}/api/docs`);
+    }
+    console.log('');
+  } catch (error: any) {
+    if (error.code === 'EADDRINUSE') {
+      logger.error(`❌ Port ${port} is already in use!`);
+      logger.error('\n💡 Решение:');
+      logger.error('1. Найдите процесс: netstat -ano | findstr :3001');
+      logger.error('2. Убейте процесс: taskkill /F /PID <номер_процесса>');
+      logger.error('3. Или перезапустите терминал и запустите снова\n');
+      process.exit(1);
+    }
+    throw error;
   }
-  console.log('');
 }
 
-bootstrap();
+bootstrap().catch((error) => {
+  console.error('Failed to start application:', error);
+  process.exit(1);
+});
