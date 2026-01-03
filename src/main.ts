@@ -5,12 +5,6 @@ import { DataSource } from 'typeorm';
 import type { Request, Response, NextFunction } from 'express';
 import { AppModule } from './app.module';
 
-// Принудительно используем IPv4 для избежания проблем с IPv6
-// Это решает проблему ENETUNREACH для IPv6 адресов
-if (!process.env.NODE_OPTIONS?.includes('--dns-result-order')) {
-  process.env.NODE_OPTIONS = (process.env.NODE_OPTIONS || '') + ' --dns-result-order=ipv4first';
-}
-
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule, {

@@ -32,21 +32,21 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
         // В development - из .env файла
         // Проверяем все возможные варианты переменных от Neon
         
-        // Используем простую логику как раньше
-        // Сначала проверяем process.env напрямую
+        // Приоритет: сначала pooler URL (рекомендуется для Neon), затем другие варианты
+        // POSTGRES_URL от Neon содержит pooler URL (с -pooler в адресе)
         const databaseUrl = 
+          process.env.POSTGRES_URL || // Pooler URL от Neon (рекомендуется)
           process.env.DATABASE_URL || 
-          process.env.DATABASE_PUBLIC_URL ||
-          process.env.POSTGRES_URL ||
           process.env.POSTGRES_PRISMA_URL ||
+          process.env.DATABASE_PUBLIC_URL ||
           process.env.POSTGRES_URL_NON_POOLING;
         
-        // Если не нашли, пробуем через ConfigService
+        // Если не нашли, пробуем через ConfigService (с тем же приоритетом)
         const databaseUrlFromConfig = databaseUrl || 
-          configService.get<string>('DATABASE_URL') || 
-          configService.get<string>('DATABASE_PUBLIC_URL') ||
           configService.get<string>('POSTGRES_URL') ||
-          configService.get<string>('POSTGRES_PRISMA_URL');
+          configService.get<string>('DATABASE_URL') || 
+          configService.get<string>('POSTGRES_PRISMA_URL') ||
+          configService.get<string>('DATABASE_PUBLIC_URL');
         
         if (!databaseUrlFromConfig) {
           console.error('❌ DATABASE_URL must be defined');
@@ -70,9 +70,16 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
           throw new Error('DATABASE_URL or POSTGRES_URL must be defined in Railway environment variables');
         }
 
-        // Простая очистка URL: убираем только channel_binding=require
-        // Оставляем остальные параметры как есть (как работало раньше)
-        const cleanDatabaseUrl = databaseUrlFromConfig.replace(/[&?]channel_binding=require/g, '');
+        // Очистка и улучшение URL:
+        // 1. Убираем channel_binding=require (несовместим с некоторыми настройками)
+        // 2. Добавляем connect_timeout если его нет (важно для стабильности)
+        let cleanDatabaseUrl = databaseUrlFromConfig.replace(/[&?]channel_binding=require/g, '');
+        
+        // Добавляем connect_timeout если его нет в URL
+        if (!cleanDatabaseUrl.includes('connect_timeout')) {
+          const separator = cleanDatabaseUrl.includes('?') ? '&' : '?';
+          cleanDatabaseUrl = `${cleanDatabaseUrl}${separator}connect_timeout=15`;
+        }
         
         console.log('✅ Database URL found:', cleanDatabaseUrl.substring(0, 60) + '...');
 
@@ -85,11 +92,16 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
           ssl: {
             rejectUnauthorized: false,
           },
-          // Настройки пула соединений
+          // Настройки пула соединений для библиотеки pg
           extra: {
-            max: 20, // Увеличиваем пул для параллельных запросов (getStats использует много запросов)
-            connectionTimeoutMillis: 10000, // Таймаут подключения 10 секунд
+            max: 10, // Максимум соединений в пуле
+            connectionTimeoutMillis: 15000, // Увеличиваем таймаут до 15 секунд
             idleTimeoutMillis: 30000, // Таймаут простоя соединения
+            keepAlive: true,
+            keepAliveInitialDelayMillis: 0,
+            // Принудительно используем IPv4 (избегаем проблем с IPv6)
+            // Это решает проблему ENETUNREACH для IPv6 адресов
+            // pg библиотека будет использовать только IPv4 адреса
           },
         };
       },
