@@ -63,7 +63,7 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
           console.error('\n💡 В Railway нужно:');
           console.error('1. Открыть настройки вашего сервиса (не проекта)');
           console.error('2. Перейти в раздел "Variables"');
-          console.error('3. Добавить переменную POSTGRES_URL (pooler URL от Neon)');
+          console.error('3. Убедиться что установлена переменная DATABASE_URL');
           console.error('4. Перезапустить сервис\n');
           
           throw new Error('DATABASE_URL or POSTGRES_URL must be defined in Railway environment variables');
