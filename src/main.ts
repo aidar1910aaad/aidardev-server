@@ -133,6 +133,7 @@ async function bootstrap() {
       }
       
       // В development разрешаем localhost и 127.0.0.1 для Swagger UI
+      // Также разрешаем aidardev.kz для локального тестирования
       const isDevelopment = process.env.NODE_ENV !== 'production';
       if (isDevelopment) {
         const localhostPatterns = [
@@ -143,6 +144,20 @@ async function bootstrap() {
           pattern.test(origin),
         );
         if (isLocalhost) {
+          return callback(null, true);
+        }
+        
+        // В development также разрешаем aidardev.kz для локального тестирования
+        // ВНИМАНИЕ: Это только для разработки! В production это не нужно.
+        const aidardevPatterns = [
+          /^https?:\/\/(.*\.)?aidardev\.kz$/,
+          /^https?:\/\/aidardev\.kz$/,
+        ];
+        const isAidardev = aidardevPatterns.some((pattern) =>
+          pattern.test(origin),
+        );
+        if (isAidardev) {
+          logger.warn(`⚠️  CORS: Allowing ${origin} in development mode (for local testing)`);
           return callback(null, true);
         }
       }
@@ -160,7 +175,10 @@ async function bootstrap() {
       if (isAllowed) {
         callback(null, true);
       } else {
-        callback(new Error('Not allowed by CORS'));
+        // Логируем для отладки
+        logger.warn(`CORS blocked: ${origin} is not allowed`);
+        logger.warn(`Allowed patterns: aidardev.kz and its subdomains`);
+        callback(new Error(`Not allowed by CORS: ${origin} is not from aidardev.kz domain`));
       }
     },
     credentials: true,
