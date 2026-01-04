@@ -114,20 +114,37 @@ async function bootstrap() {
   // Настройка Swagger
   const config = new DocumentBuilder()
     .setTitle('AidarDev Server API')
-    .setDescription('API для системы чатов AidarDev')
+    .setDescription('API для системы чатов и блога AidarDev')
     .setVersion('1.0')
     .addTag('chats', 'Операции с чатами')
+    .addTag('blog', 'Операции с блог-постами')
     .build();
   
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
   
   // Настройка CORS для aidardev.kz и его поддоменов
+  // В development также разрешаем localhost для Swagger UI
   app.enableCors({
     origin: (origin, callback) => {
       // Разрешаем запросы без origin (например, Postman, мобильные приложения)
       if (!origin) {
         return callback(null, true);
+      }
+      
+      // В development разрешаем localhost и 127.0.0.1 для Swagger UI
+      const isDevelopment = process.env.NODE_ENV !== 'production';
+      if (isDevelopment) {
+        const localhostPatterns = [
+          /^https?:\/\/localhost(:\d+)?$/,
+          /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
+        ];
+        const isLocalhost = localhostPatterns.some((pattern) =>
+          pattern.test(origin),
+        );
+        if (isLocalhost) {
+          return callback(null, true);
+        }
       }
       
       // Проверяем, что origin соответствует aidardev.kz или его поддоменам
@@ -152,8 +169,8 @@ async function bootstrap() {
   });
   
   // В Railway PORT устанавливается автоматически, используем его
-  // В development используем 3001 по умолчанию
-  const port = process.env.PORT || 3001;
+  // В development используем 3002 по умолчанию (изменено с 3001 для избежания конфликтов)
+  const port = process.env.PORT || 3002;
   
   // Graceful shutdown для корректного завершения процесса
   // Это решает проблему EADDRINUSE при перезапуске в watch режиме
@@ -185,7 +202,7 @@ async function bootstrap() {
     if (error.code === 'EADDRINUSE') {
       logger.error(`❌ Port ${port} is already in use!`);
       logger.error('\n💡 Решение:');
-      logger.error('1. Найдите процесс: netstat -ano | findstr :3001');
+      logger.error(`1. Найдите процесс: netstat -ano | findstr :${port}`);
       logger.error('2. Убейте процесс: taskkill /F /PID <номер_процесса>');
       logger.error('3. Или перезапустите терминал и запустите снова\n');
       process.exit(1);

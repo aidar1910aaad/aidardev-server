@@ -5,6 +5,7 @@ import { DefaultNamingStrategy } from 'typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ChatsModule } from './chats/chats.module';
+import { BlogModule } from './blog/blog.module';
 
 class SnakeNamingStrategy extends DefaultNamingStrategy {
   columnName(propertyName: string, customName: string, embeddedPrefixes: string[]): string {
@@ -86,7 +87,8 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
           type: 'postgres',
           url: cleanDatabaseUrl,
           autoLoadEntities: true,
-          synchronize: process.env.NODE_ENV !== 'production', // Автоматическое создание таблиц в development
+          // В production синхронизация отключена, но можно включить через переменную окружения для первого запуска
+          synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true' || process.env.NODE_ENV !== 'production',
           namingStrategy: new SnakeNamingStrategy(),
           ssl: {
             rejectUnauthorized: false,
@@ -107,6 +109,7 @@ class SnakeNamingStrategy extends DefaultNamingStrategy {
       inject: [ConfigService],
     }),
     ChatsModule,
+    BlogModule,
   ],
   controllers: [AppController],
   providers: [AppService],
