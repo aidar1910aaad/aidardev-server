@@ -38,11 +38,14 @@ export class BlogGenerationService {
 
       for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
         try {
-          generated = await this.openAi.generate(
+          generated = this.quality.normalize(
+            await this.openAi.generate(
+              cluster,
+              existingPosts.map((post) => post.slug),
+              options.topic,
+              errors,
+            ),
             cluster,
-            existingPosts.map((post) => post.slug),
-            options.topic,
-            errors,
           );
           const report = this.quality.validate(generated, cluster, existingPosts);
           if (report.passed) break;

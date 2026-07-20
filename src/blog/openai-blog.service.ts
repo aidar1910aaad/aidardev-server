@@ -125,13 +125,13 @@ SEO phrase pool (select only natural, relevant phrases): ${cluster.keywords.join
 Avoid these existing slugs and closely overlapping angles: ${existingSlugs.slice(0, 80).join(', ') || 'none'}.
 
 Requirements for BOTH ru and kz:
-- 700-1200 words of substantive HTML, 3-6 h2 sections, useful lists where appropriate.
-- Title 35-90 chars; meta description 120-180 chars; excerpt 140-320 chars; 4-10 keywords.
-- 2-5 natural internal links using only /ru/services/${cluster.servicePath} in RU and /kz/services/${cluster.servicePath} in KZ.
-- End with a clear, low-pressure CTA to discuss the task or request a consultation.
+- 500-1100 words of substantive HTML, 2-6 h2 sections, useful lists where appropriate.
+- Title 25-100 chars; meta description 100-200 chars; excerpt 100-350 chars; 4-8 keywords.
+- Include 1-3 natural internal links. RU links must be exactly /ru/services/${cluster.servicePath} (and optionally /ru/services/consulting). KZ links must be exactly /kz/services/${cluster.servicePath} (and optionally /kz/services/consulting). No other hrefs.
+- End with a clear CTA: RU use words like "обсудить" or "консультация"; KZ use "талқылау" or "кеңес" or "байланысу".
 - Mention cities only where relevant; do not force every city into the text.
 - No claims presented as AidarDev experience unless supplied here (none are supplied).
-- No years, fabricated examples, fake quotes, rankings, guaranteed outcomes, or unsupported numbers.
+- No fabricated client cases, fake quotes, rankings, guaranteed outcomes, or "мы увеличили X%".
 - Slug is Latin kebab-case, maximum 100 chars. Date is exactly ${today}.
 - readingTime is 4-20. Do not include published; publication is controlled by the server.
 ${correctionErrors.length ? `Fix every quality-gate issue from the prior attempt:\n- ${correctionErrors.join('\n- ')}` : ''}

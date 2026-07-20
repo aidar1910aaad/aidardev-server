@@ -59,6 +59,16 @@ describe('BlogQualityService', () => {
     expect(service.validate(post(), cluster).errors).toEqual([]);
   });
 
+  it('normalizes date and readingTime before validation', () => {
+    const candidate = post();
+    candidate.date = '2000-01-01';
+    candidate.readingTime = 99 as number;
+    const normalized = service.normalize(candidate, cluster);
+    expect(normalized.date).toBe(new Date().toISOString().slice(0, 10));
+    expect(normalized.readingTime).toBe(20);
+    expect(service.validate(normalized, cluster).passed).toBe(true);
+  });
+
   it('rejects guarantees and unsafe markup', () => {
     const candidate = post();
     candidate.content.ru += '<script>alert(1)</script><p>Гарантируем результат.</p>';
