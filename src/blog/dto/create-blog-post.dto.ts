@@ -8,10 +8,10 @@ class MultilingualTextDto {
   @IsNotEmpty()
   ru: string;
 
-  @ApiProperty({ description: 'Текст на английском' })
+  @ApiProperty({ description: 'Текст на английском (может быть пустым)' })
   @IsString()
-  @IsNotEmpty()
-  en: string;
+  @IsOptional()
+  en?: string;
 
   @ApiProperty({ description: 'Текст на казахском' })
   @IsString()
@@ -28,7 +28,8 @@ class MultilingualArrayDto {
   @ApiProperty({ description: 'Массив на английском', type: [String] })
   @IsArray()
   @IsString({ each: true })
-  en: string[];
+  @IsOptional()
+  en?: string[];
 
   @ApiProperty({ description: 'Массив на казахском', type: [String] })
   @IsArray()
