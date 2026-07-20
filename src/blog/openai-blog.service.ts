@@ -1,6 +1,7 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import OpenAI from 'openai';
+import { BLOG_TOPIC_CLUSTERS } from './blog-keywords.data';
 import { GeneratedBlogPost, TopicCluster } from './blog-generation.types';
 
 const localizedTextSchema = {
@@ -80,10 +81,11 @@ export class OpenAiBlogService {
         {
           role: 'system',
           content: [
-            'You are a senior bilingual RU/KZ commercial editor for aidardev.kz in Kazakhstan.',
-            'Return only the requested structured object. Write original, useful, factual content.',
+            'You are a senior bilingual RU/KZ growth editor for aidardev.kz in Kazakhstan.',
+            'Write high-intent commercial articles that attract owners and decision-makers who are ready to contact a developer.',
+            'Style: punchy, clear, modern, slightly provocative but honest. No fluff.',
             'Never invent clients, completed projects, testimonials, measured results, prices, statistics, guarantees, or case studies.',
-            'Do not keyword-stuff. Explain options, trade-offs, buying criteria, process, and practical next steps.',
+            'Do not keyword-stuff. Focus on pain, money lost, time lost, decision criteria, and a concrete next step.',
             'HTML may only use h2,h3,p,ul,ol,li,strong,em,a. No h1, scripts, styles, tables, images, or external links.',
           ].join(' '),
         },
@@ -117,23 +119,34 @@ export class OpenAiBlogService {
     correctionErrors: string[] = [],
   ): string {
     const today = new Date().toISOString().slice(0, 10);
-    return `
-Create one article in Russian and a native Kazakh adaptation (not a literal translation).
-Market: Kazakhstan. Service: ${cluster.service}. Location focus: ${cluster.city}.
-Commercial search intent: ${cluster.intent}. Optional editorial angle: ${requestedTopic || 'choose a practical buyer-focused angle'}.
-SEO phrase pool (select only natural, relevant phrases): ${cluster.keywords.join('; ')}.
-Avoid these existing slugs and closely overlapping angles: ${existingSlugs.slice(0, 80).join(', ') || 'none'}.
+    const enriched = BLOG_TOPIC_CLUSTERS.find((item) => item.id === cluster.id);
+    const hook = enriched?.hook || cluster.intent;
 
-Requirements for BOTH ru and kz:
-- 500-1100 words of substantive HTML, 2-6 h2 sections, useful lists where appropriate.
+    return `
+Create one high-converting article in Russian and a native Kazakh adaptation (not a literal translation).
+Market: Kazakhstan. Service angle: ${cluster.service}. Location focus: ${cluster.city}.
+Reader intent: ${cluster.intent}.
+Must-use editorial hook: "${hook}".
+Optional extra angle: ${requestedTopic || 'keep the hook as the main spine'}.
+SEO phrase pool (use naturally, 1-2 times each max): ${cluster.keywords.join('; ')}.
+Avoid these existing slugs and overlapping angles: ${existingSlugs.slice(0, 80).join(', ') || 'none'}.
+
+Title formula:
+- Curiosity + pain + local/business relevance.
+- Tone examples: "Почему ...", "Сколько стоит ошибка ...", "Что выбрать ...", "Как перестать терять ...".
+- No clickbait lies. No fake numbers. No guarantees.
+
+Content goals for BOTH ru and kz:
+- Open with the pain in first 2 paragraphs (lost leads, expensive ads, slow replies, chaos in WhatsApp/Excel).
+- Give a practical checklist and decision framework.
+- Include a short "who this is for / who this is not for" section.
+- Push toward contacting for a consultation without pressure.
+- 500-1100 words HTML, 3-6 h2 sections, lists where useful.
 - Title 25-100 chars; meta description 100-200 chars; excerpt 100-350 chars; 4-8 keywords.
-- Include 1-3 natural internal links. RU links must be exactly /ru/services/${cluster.servicePath} (and optionally /ru/services/consulting). KZ links must be exactly /kz/services/${cluster.servicePath} (and optionally /kz/services/consulting). No other hrefs.
-- End with a clear CTA: RU use words like "обсудить" or "консультация"; KZ use "талқылау" or "кеңес" or "байланысу".
-- Mention cities only where relevant; do not force every city into the text.
-- No claims presented as AidarDev experience unless supplied here (none are supplied).
-- No fabricated client cases, fake quotes, rankings, guaranteed outcomes, or "мы увеличили X%".
-- Slug is Latin kebab-case, maximum 100 chars. Date is exactly ${today}.
-- readingTime is 4-20. Do not include published; publication is controlled by the server.
+- 1-3 internal links only. In RU body use /ru/services/${cluster.servicePath} and optionally /ru/services/consulting. In KZ body use /kz/services/${cluster.servicePath} and optionally /kz/services/consulting.
+- End CTA: RU "обсудить"/"консультация"; KZ "талқылау"/"кеңес"/"байланысу".
+- Slug Latin kebab-case <= 100. Date exactly ${today}. readingTime 4-20.
+- Do not include published.
 ${correctionErrors.length ? `Fix every quality-gate issue from the prior attempt:\n- ${correctionErrors.join('\n- ')}` : ''}
 `.trim();
   }

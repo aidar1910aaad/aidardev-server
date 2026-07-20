@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BLOG_TOPIC_CLUSTERS } from './blog-keywords.data';
+import { BLOG_TOPIC_CLUSTERS, HypeTopicCluster } from './blog-keywords.data';
 import { ExistingBlogPost, TopicCluster } from './blog-generation.types';
 
 @Injectable()
@@ -11,33 +11,51 @@ export class TopicPlannerService {
 
     const ranked = BLOG_TOPIC_CLUSTERS.map((cluster) => {
       const clusterTokens = this.tokens(
-        [cluster.service, cluster.city, cluster.intent, ...cluster.keywords].join(' '),
+        [cluster.service, cluster.city, cluster.intent, cluster.hook, ...cluster.keywords].join(' '),
       );
-      const maxOverlap = Math.max(
-        0,
-        ...existingDocuments.map((document) => this.jaccard(clusterTokens, document)),
-      );
+      const maxOverlap = existingDocuments.length
+        ? Math.max(...existingDocuments.map((document) => this.jaccard(clusterTokens, document)))
+        : 0;
       const keywordUsed = existingPosts.some((post) =>
         cluster.keywords.some((keyword) =>
           post.keywords.some((used) => this.normalize(used) === this.normalize(keyword)),
         ),
       );
-      return { cluster, score: maxOverlap + (keywordUsed ? 1 : 0) };
-    }).sort((a, b) => a.score - b.score || a.cluster.id.localeCompare(b.cluster.id));
+      // Lower score = better. Prefer unused high-hype topics.
+      const noveltyPenalty = maxOverlap * 4 + (keywordUsed ? 3 : 0);
+      const hypeBonus = cluster.hypeScore / 100;
+      return {
+        cluster,
+        score: noveltyPenalty - hypeBonus,
+      };
+    }).sort((a, b) => a.score - b.score || b.cluster.hypeScore - a.cluster.hypeScore || a.cluster.id.localeCompare(b.cluster.id));
 
-    const bestScore = ranked[0]?.score;
-    const candidates = ranked.filter((item) => item.score === bestScore);
-    if (!candidates.length) {
+    // Take the freshest high-hype band, then pick deterministically by seed.
+    const topBand = ranked.slice(0, Math.min(5, ranked.length));
+    if (!topBand.length) {
       throw new Error('No blog topic clusters configured');
     }
 
-    return candidates[this.hash(seed) % candidates.length].cluster;
+    const chosen = topBand[this.hash(seed) % topBand.length].cluster;
+    return this.toTopicCluster(chosen);
   }
 
   isCannibalizing(cluster: TopicCluster, post: { slug: string; title: string; keywords: string[] }): boolean {
     const planned = this.tokens([cluster.service, cluster.city, ...cluster.keywords].join(' '));
     const generated = this.tokens([post.slug, post.title, ...post.keywords].join(' '));
     return this.jaccard(planned, generated) < 0.12;
+  }
+
+  private toTopicCluster(cluster: HypeTopicCluster): TopicCluster {
+    return {
+      id: cluster.id,
+      service: cluster.service,
+      category: cluster.category,
+      intent: cluster.intent,
+      city: cluster.city,
+      keywords: cluster.keywords,
+      servicePath: cluster.servicePath,
+    };
   }
 
   private normalize(value: string): string {
