@@ -19,6 +19,28 @@ export class BlogService {
     private blogPostRepository: Repository<BlogPost>,
   ) {}
 
+  private normalizeText(
+    value: { ru: string; en?: string; kz: string },
+    current?: { ru: string; en: string; kz: string },
+  ) {
+    return {
+      ru: value.ru,
+      en: value.en?.trim() || current?.en || value.ru,
+      kz: value.kz,
+    };
+  }
+
+  private normalizeArray(
+    value: { ru: string[]; en?: string[]; kz: string[] },
+    current?: { ru: string[]; en: string[]; kz: string[] },
+  ) {
+    return {
+      ru: value.ru,
+      en: value.en?.length ? value.en : current?.en || value.ru,
+      kz: value.kz,
+    };
+  }
+
   /**
    * Получить все опубликованные посты
    * Сортировка: новые первые
@@ -77,15 +99,19 @@ export class BlogService {
     // Если нужно сохранить как Date, TypeORM автоматически преобразует строку в date тип
     const post = this.blogPostRepository.create({
       slug: createBlogPostDto.slug,
-      title: createBlogPostDto.title,
-      description: createBlogPostDto.description,
-      excerpt: createBlogPostDto.excerpt,
-      category: createBlogPostDto.category,
+      title: this.normalizeText(createBlogPostDto.title),
+      description: this.normalizeText(createBlogPostDto.description),
+      excerpt: this.normalizeText(createBlogPostDto.excerpt),
+      category: this.normalizeText(createBlogPostDto.category),
       date: createBlogPostDto.date, // TypeORM автоматически конвертирует строку YYYY-MM-DD в date
-      keywords: createBlogPostDto.keywords || null,
+      keywords: createBlogPostDto.keywords
+        ? this.normalizeArray(createBlogPostDto.keywords)
+        : null,
       readingTime: createBlogPostDto.readingTime || 5,
       published: createBlogPostDto.published || false,
-      content: createBlogPostDto.content || null,
+      content: createBlogPostDto.content
+        ? this.normalizeText(createBlogPostDto.content)
+        : null,
       generationKey: generationKey || null,
     });
 
@@ -119,18 +145,49 @@ export class BlogService {
     }
 
     // Обновляем поля
-    if (updateBlogPostDto.title) post.title = updateBlogPostDto.title;
-    if (updateBlogPostDto.description) post.description = updateBlogPostDto.description;
-    if (updateBlogPostDto.excerpt) post.excerpt = updateBlogPostDto.excerpt;
-    if (updateBlogPostDto.category) post.category = updateBlogPostDto.category;
+    if (updateBlogPostDto.title) {
+      post.title = this.normalizeText(updateBlogPostDto.title, post.title);
+    }
+    if (updateBlogPostDto.description) {
+      post.description = this.normalizeText(
+        updateBlogPostDto.description,
+        post.description,
+      );
+    }
+    if (updateBlogPostDto.excerpt) {
+      post.excerpt = this.normalizeText(
+        updateBlogPostDto.excerpt,
+        post.excerpt,
+      );
+    }
+    if (updateBlogPostDto.category) {
+      post.category = this.normalizeText(
+        updateBlogPostDto.category,
+        post.category,
+      );
+    }
     if (updateBlogPostDto.date) {
       // TypeORM конвертирует строку YYYY-MM-DD в date тип PostgreSQL
       post.date = updateBlogPostDto.date as any;
     }
-    if (updateBlogPostDto.keywords !== undefined) post.keywords = updateBlogPostDto.keywords || null;
+    if (updateBlogPostDto.keywords !== undefined) {
+      post.keywords = updateBlogPostDto.keywords
+        ? this.normalizeArray(
+            updateBlogPostDto.keywords,
+            post.keywords || undefined,
+          )
+        : null;
+    }
     if (updateBlogPostDto.readingTime !== undefined) post.readingTime = updateBlogPostDto.readingTime;
     if (updateBlogPostDto.published !== undefined) post.published = updateBlogPostDto.published;
-    if (updateBlogPostDto.content !== undefined) post.content = updateBlogPostDto.content || null;
+    if (updateBlogPostDto.content !== undefined) {
+      post.content = updateBlogPostDto.content
+        ? this.normalizeText(
+            updateBlogPostDto.content,
+            post.content || undefined,
+          )
+        : null;
+    }
     if (updateBlogPostDto.slug) post.slug = updateBlogPostDto.slug;
 
     const updatedPost = await this.blogPostRepository.save(post);
