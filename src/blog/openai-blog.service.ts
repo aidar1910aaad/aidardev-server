@@ -43,7 +43,6 @@ export class OpenAiBlogService {
 
     const completion = await this.client.chat.completions.create({
       model: this.model,
-      temperature: 0.7,
       response_format: {
         type: 'json_schema',
         json_schema: {

@@ -62,10 +62,13 @@ export class BlogGenerationService {
       }
 
       if (!generated) {
+        const generationFailed = errors.some((error) => error.includes('generation attempt'));
         throw new UnprocessableEntityException({
           statusCode: 422,
           error: 'Unprocessable Entity',
-          message: 'Generated post failed the quality gate and was not saved',
+          message: generationFailed
+            ? 'OpenAI generation failed'
+            : 'Generated post failed the quality gate and was not saved',
           errors,
         });
       }
