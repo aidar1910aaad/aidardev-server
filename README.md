@@ -57,6 +57,27 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
+## Blog automation
+
+Public reads remain available at `GET /api/blog/posts` and
+`GET /api/blog/posts/:slug`. Every POST/PATCH/DELETE blog route requires
+`Authorization: Bearer <BLOG_API_SECRET>`.
+
+The external scheduler should call `POST /api/blog/cron/generate?slot=1`,
+`slot=2`, and `slot=3` on its three weekly schedules. A date/slot pair is
+idempotent. Successful cron generation always passes the RU+KZ quality gate,
+is saved as `published: true`, and then calls the optional revalidation
+webhook.
+
+Required production variables are `OPENAI_API_KEY` and `BLOG_API_SECRET`.
+Optional variables are documented in `.env.example`. The OpenAI model defaults
+to `gpt-5-mini`. Apply the `AddBlogGenerationKey1721470000000` TypeORM migration
+before deploying with schema synchronization disabled:
+
+```bash
+npm run migration:run
+```
+
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.

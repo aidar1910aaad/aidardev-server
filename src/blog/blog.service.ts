@@ -61,7 +61,7 @@ export class BlogService {
   /**
    * Создать новый пост
    */
-  async createPost(createBlogPostDto: CreateBlogPostDto) {
+  async createPost(createBlogPostDto: CreateBlogPostDto, generationKey?: string) {
     // Проверяем, существует ли пост с таким slug
     const existingPost = await this.blogPostRepository.findOne({
       where: { slug: createBlogPostDto.slug },
@@ -86,6 +86,7 @@ export class BlogService {
       readingTime: createBlogPostDto.readingTime || 5,
       published: createBlogPostDto.published || false,
       content: createBlogPostDto.content || null,
+      generationKey: generationKey || null,
     });
 
     const savedPost = await this.blogPostRepository.save(post);
@@ -157,7 +158,7 @@ export class BlogService {
    */
   async getExistingPostsList(language: 'ru' | 'en' | 'kz' = 'ru') {
     const posts = await this.blogPostRepository.find({
-      select: ['slug', 'title', 'category'],
+      select: ['slug', 'title', 'category', 'keywords'],
       order: { createdAt: 'DESC' },
     });
 
@@ -165,7 +166,17 @@ export class BlogService {
       slug: post.slug,
       title: post.title[language] || post.title.ru || post.title.en || '',
       category: post.category?.[language] || post.category?.ru || post.category?.en || '',
+      keywords: post.keywords?.[language] || post.keywords?.ru || post.keywords?.en || [],
     }));
+  }
+
+  async getPostByGenerationKey(generationKey: string) {
+    const post = await this.blogPostRepository
+      .createQueryBuilder('post')
+      .addSelect('post.generationKey')
+      .where('post.generationKey = :generationKey', { generationKey })
+      .getOne();
+    return post ? this.formatPost(post) : null;
   }
 
   /**
@@ -200,6 +211,7 @@ export class BlogService {
       content: post.content,
       createdAt: post.createdAt.toISOString(),
       updatedAt: post.updatedAt.toISOString(),
+      dateModified: post.updatedAt.toISOString(),
     };
   }
 }

@@ -72,6 +72,9 @@ export class BlogPost {
   @Index()
   published: boolean;
 
+  @Column({ type: 'varchar', length: 64, nullable: true, unique: true, select: false })
+  generationKey: string | null;
+
   // Полный контент (HTML) - опционально, можно загружать отдельно
   @Column({ type: 'jsonb', nullable: true })
   content: {
