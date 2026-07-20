@@ -143,7 +143,10 @@ Content goals for BOTH ru and kz:
 - Push toward contacting for a consultation without pressure.
 - 500-1100 words HTML, 3-6 h2 sections, lists where useful.
 - Title 25-100 chars; meta description 100-200 chars; excerpt 100-350 chars; 4-8 keywords.
-- 1-3 internal links only. In RU body use /ru/services/${cluster.servicePath} and optionally /ru/services/consulting. In KZ body use /kz/services/${cluster.servicePath} and optionally /kz/services/consulting.
+- Exactly 2 internal links in each language body:
+  1) primary service page /{lang}/services/${cluster.servicePath}
+  2) secondary: /{lang}/pricing OR a closely related /{lang}/services/* page from the same funnel
+- Link anchor text must be natural (not "click here"); mention the service benefit.
 - End CTA: RU "обсудить"/"консультация"; KZ "талқылау"/"кеңес"/"байланысу".
 - Slug Latin kebab-case <= 100. Date exactly ${today}. readingTime 4-20.
 - Do not include published.
