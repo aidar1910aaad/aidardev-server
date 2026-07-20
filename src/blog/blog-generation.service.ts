@@ -63,6 +63,8 @@ export class BlogGenerationService {
 
       if (!generated) {
         throw new UnprocessableEntityException({
+          statusCode: 422,
+          error: 'Unprocessable Entity',
           message: 'Generated post failed the quality gate and was not saved',
           errors,
         });

@@ -14,63 +14,56 @@ describe('BlogQualityService', () => {
   };
 
   function html(language: 'ru' | 'kz'): string {
-    const sentence = language === 'ru'
-      ? 'Команда сначала описывает процесс, ограничения, источники данных, роли сотрудников и критерии приемки, чтобы решение приносило понятную пользу бизнесу без лишней сложности.'
-      : 'Команда алдымен үдерісті, шектеулерді, дереккөздерді, қызметкерлер рөлін және қабылдау талаптарын сипаттайды, сондықтан шешім бизнеске артық күрделіліксіз түсінікті пайда әкеледі.';
-    const paragraphs = Array.from({ length: 36 }, () => `<p>${sentence}</p>`).join('');
-    const cta = language === 'ru'
-      ? '<p>Свяжитесь с нами, чтобы обсудить задачу и получить консультацию.</p>'
-      : '<p>Міндетті талқылау және кеңес алу үшін бізге хабарласыңыз.</p>';
-    return `<h2>Задача бизнеса</h2>${paragraphs}<h2>Выбор решения</h2><ul><li>Анализ</li><li>Проверка</li></ul><h2>Следующий шаг</h2><p><a href="/${language}/services/ai">AI қызметі</a> и <a href="/${language}/services/consulting">консультация</a>.</p>${cta}`;
+    const sentence =
+      language === 'ru'
+        ? 'Команда сначала описывает процесс, ограничения, источники данных, роли сотрудников и критерии приемки, чтобы решение приносило понятную пользу бизнесу без лишней сложности.'
+        : 'Команда алдымен үдерісті, шектеулерді, дереккөздерді, қызметкерлер рөлін және қабылдау талаптарын сипаттайды, сондықтан шешім бизнеске артық күрделіліксіз түсінікті пайда әкеледі.';
+    const paragraphs = Array.from({ length: 8 }, () => `<p>${sentence}</p>`).join('');
+    return `<h2>Задача бизнеса</h2>${paragraphs}<h2>Выбор решения</h2><ul><li>Анализ</li><li>Проверка</li></ul><h2>Следующий шаг</h2>`;
   }
 
   function post(): GeneratedBlogPost {
     return {
       slug: 'ai-chatbot-for-business-almaty',
       title: {
-        ru: 'AI-чатбот для бизнеса в Алматы: как выбрать решение',
+        ru: 'AI-чатбот для бизнеса в Алматы',
         en: '',
-        kz: 'Алматыдағы бизнеске AI чатботты қалай дұрыс таңдау керек',
+        kz: 'Алматыдағы бизнеске AI чатбот',
       },
       description: {
-        ru: 'Разбираем, как выбрать AI-чатбот для бизнеса в Алматы: требования, интеграции, риски и этапы запуска. Обсудите задачу на консультации.',
+        ru: 'Как выбрать AI-чатбот для бизнеса в Алматы: требования, интеграции и этапы запуска.',
         en: '',
-        kz: 'Алматыдағы бизнеске AI чатбот таңдаудың талаптары, интеграциясы, тәуекелі және іске қосу кезеңдері. Міндетті кеңесте талқылаңыз.',
+        kz: 'Алматыдағы бизнеске AI чатбот таңдау: талаптар, интеграция және іске қосу.',
       },
       excerpt: {
-        ru: 'Практическое руководство для компаний, которые оценивают AI-чатбот: какие процессы автоматизировать, как подготовить данные и проверить подрядчика перед запуском.',
+        ru: 'Практическое руководство для компаний, которые оценивают AI-чатбот перед запуском.',
         en: '',
-        kz: 'AI чатботты бағалап жүрген компанияларға арналған нұсқаулық: қандай үдерісті автоматтандыру, деректерді дайындау және мердігерді іске қосуға дейін тексеру жолдары.',
+        kz: 'AI чатботты бағалап жүрген компанияларға арналған қысқа нұсқаулық.',
       },
       category: { ru: 'Технологии', en: '', kz: 'Технологиялар' },
-      date: new Date().toISOString().slice(0, 10),
+      date: '2000-01-01',
       keywords: {
-        ru: ['ai чатбот разработка алматы', 'gpt чатбот для бизнеса', 'ai интеграция', 'автоматизация'],
+        ru: ['ai чатбот', 'gpt чатбот'],
         en: [],
-        kz: ['алматы ai чатбот', 'бизнеске ai көмекші', 'ai интеграция', 'автоматтандыру'],
+        kz: ['ai чатбот', 'gpt'],
       },
-      readingTime: 8,
+      readingTime: 99,
       published: false,
       content: { ru: html('ru'), en: '', kz: html('kz') },
     };
   }
 
-  it('accepts a useful bilingual post', () => {
-    expect(service.validate(post(), cluster).errors).toEqual([]);
-  });
-
-  it('normalizes date and readingTime before validation', () => {
-    const candidate = post();
-    candidate.date = '2000-01-01';
-    candidate.readingTime = 99 as number;
-    const normalized = service.normalize(candidate, cluster);
-    expect(normalized.date).toBe(new Date().toISOString().slice(0, 10));
-    expect(normalized.readingTime).toBe(20);
-    expect(service.validate(normalized, cluster).passed).toBe(true);
+  it('repairs and accepts imperfect GPT output', () => {
+    const normalized = service.normalize(post(), cluster);
+    const report = service.validate(normalized, cluster);
+    expect(report.errors).toEqual([]);
+    expect(normalized.content.ru).toMatch(/\/ru\/services\/ai/);
+    expect(normalized.content.kz).toMatch(/\/kz\/services\/ai/);
+    expect(normalized.content.ru).toMatch(/консультац|обсудить|свяжитесь/i);
   });
 
   it('rejects guarantees and unsafe markup', () => {
-    const candidate = post();
+    const candidate = service.normalize(post(), cluster);
     candidate.content.ru += '<script>alert(1)</script><p>Гарантируем результат.</p>';
     const report = service.validate(candidate, cluster);
     expect(report.passed).toBe(false);

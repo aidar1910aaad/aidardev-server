@@ -27,8 +27,8 @@ export class OpenAiBlogService {
 
   constructor(private readonly config: ConfigService) {
     const apiKey = this.config.get<string>('OPENAI_API_KEY');
-    this.model = this.config.get<string>('OPENAI_BLOG_MODEL') || 'gpt-5-mini';
-    if (apiKey) this.client = new OpenAI({ apiKey });
+    this.model = this.config.get<string>('OPENAI_BLOG_MODEL') || 'gpt-4o-mini';
+    if (apiKey) this.client = new OpenAI({ apiKey, timeout: 90_000 });
   }
 
   async generate(
@@ -43,6 +43,7 @@ export class OpenAiBlogService {
 
     const completion = await this.client.chat.completions.create({
       model: this.model,
+      temperature: 0.7,
       response_format: {
         type: 'json_schema',
         json_schema: {
